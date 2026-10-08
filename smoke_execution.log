@@ -1,0 +1,77 @@
+a2c seed=0 decisions=32/512 sps=24.4 value_mse=0.8343
+a2c seed=0 decisions=64/512 sps=43.3 value_mse=0.0253
+a2c seed=0 decisions=96/512 sps=42.2 value_mse=0.0842
+a2c seed=0 decisions=128/512 sps=42.6 value_mse=0.0884
+validation return=-30.2 completion=0%
+a2c seed=0 decisions=160/512 sps=43.2 value_mse=0.0899
+a2c seed=0 decisions=192/512 sps=43.1 value_mse=0.0623
+a2c seed=0 decisions=224/512 sps=39.7 value_mse=0.0574
+a2c seed=0 decisions=256/512 sps=41.8 value_mse=0.0188
+validation return=-30.2 completion=0%
+a2c seed=0 decisions=288/512 sps=40.7 value_mse=0.0195
+a2c seed=0 decisions=320/512 sps=41.8 value_mse=0.0200
+a2c seed=0 decisions=352/512 sps=41.4 value_mse=0.0305
+a2c seed=0 decisions=384/512 sps=39.4 value_mse=0.0500
+validation return=-30.2 completion=0%
+a2c seed=0 decisions=416/512 sps=41.1 value_mse=0.0272
+a2c seed=0 decisions=448/512 sps=41.2 value_mse=0.0238
+a2c seed=0 decisions=480/512 sps=40.9 value_mse=0.0356
+a2c seed=0 decisions=512/512 sps=37.3 value_mse=0.1523
+validation return=-30.2 completion=0%
+[swscaler @ 000001bf9ec31000] Warning: data is not aligned! This can lead to a speed loss
+{'episodes': 1, 'mean_return': -11.016949152542226, 'std_return': 0.0, 'median_return': -11.016949152542226, 'min_return': -11.016949152542226, 'max_return': -11.016949152542226, 'completion_rate': 0.0, 'mean_coverage': 0.08898305084745763, 'score_ge_900_rate': 0.0, 'algo': 'a2c', 'seed': 0, 'checkpoint': 'D:\\Desktop\\RL_project\\runs\\smoke\\a2c_s0\\last.pt', 'checkpoint_steps': 512, 'train_seconds': 12.948893699911423, 'evaluation_seconds': 26.498956799972802, 'domain_randomize': False, 'seed_start': 2000000, 'deterministic': True, 'config': {'algo': 'a2c', 'seed': 0, 'steps': 512, 'num_envs': 2, 'rollout': 16, 'batch_size': 128, 'device': 'cuda', 'threads': 2, 'actor_lr': 0.0003, 'critic_lr': 0.0003, 'gamma': 0.99, 'gae_lambda': 0.95, 'reward_scale': 0.1, 'entropy_coef': 0.0, 'normalize_adv': True, 'value_steps': 50, 'ppo_epochs': 10, 'clip': 0.2, 'max_grad_norm': 1.0, 'critic_grad_norm': 0.0, 'eval_every': 128, 'eval_episodes': 1, 'out': 'runs\\smoke', 'name': None, 'resume': None}}
+[swscaler @ 000001976d160f80] Warning: data is not aligned! This can lead to a speed loss
+{'episodes': 1, 'mean_return': -11.016949152542054, 'std_return': 0.0, 'median_return': -11.016949152542054, 'min_return': -11.016949152542054, 'max_return': -11.016949152542054, 'completion_rate': 0.0, 'mean_coverage': 0.08898305084745763, 'score_ge_900_rate': 0.0, 'algo': 'a2c', 'seed': 0, 'checkpoint': 'D:\\Desktop\\RL_project\\runs\\smoke\\a2c_s0\\best.pt', 'checkpoint_steps': 384, 'train_seconds': 9.752548499964178, 'evaluation_seconds': 26.628409199998714, 'domain_randomize': False, 'seed_start': 2000000, 'deterministic': True, 'config': {'algo': 'a2c', 'seed': 0, 'steps': 512, 'num_envs': 2, 'rollout': 16, 'batch_size': 128, 'device': 'cuda', 'threads': 2, 'actor_lr': 0.0003, 'critic_lr': 0.0003, 'gamma': 0.99, 'gae_lambda': 0.95, 'reward_scale': 0.1, 'entropy_coef': 0.0, 'normalize_adv': True, 'value_steps': 50, 'ppo_epochs': 10, 'clip': 0.2, 'max_grad_norm': 1.0, 'critic_grad_norm': 0.0, 'eval_every': 128, 'eval_episodes': 1, 'out': 'runs\\smoke', 'name': None, 'resume': None}}
+ppo seed=0 decisions=32/512 sps=20.1 value_mse=0.0765
+ppo seed=0 decisions=64/512 sps=36.1 value_mse=0.0287
+ppo seed=0 decisions=96/512 sps=39.2 value_mse=0.0224
+ppo seed=0 decisions=128/512 sps=39.1 value_mse=0.0193
+validation return=-30.2 completion=0%
+ppo seed=0 decisions=160/512 sps=34.5 value_mse=0.0095
+ppo seed=0 decisions=192/512 sps=35.3 value_mse=0.0127
+ppo seed=0 decisions=224/512 sps=36.7 value_mse=0.0159
+ppo seed=0 decisions=256/512 sps=36.5 value_mse=0.0069
+validation return=-30.2 completion=0%
+ppo seed=0 decisions=288/512 sps=32.4 value_mse=0.0145
+ppo seed=0 decisions=320/512 sps=40.4 value_mse=0.0105
+ppo seed=0 decisions=352/512 sps=38.7 value_mse=0.0130
+ppo seed=0 decisions=384/512 sps=37.3 value_mse=0.0125
+validation return=-30.2 completion=0%
+ppo seed=0 decisions=416/512 sps=31.3 value_mse=0.0120
+ppo seed=0 decisions=448/512 sps=34.4 value_mse=0.0160
+ppo seed=0 decisions=480/512 sps=37.5 value_mse=0.0172
+ppo seed=0 decisions=512/512 sps=31.1 value_mse=0.0113
+validation return=-30.2 completion=0%
+[swscaler @ 000001fb23661000] Warning: data is not aligned! This can lead to a speed loss
+{'episodes': 1, 'mean_return': -11.016949152542619, 'std_return': 0.0, 'median_return': -11.016949152542619, 'min_return': -11.016949152542619, 'max_return': -11.016949152542619, 'completion_rate': 0.0, 'mean_coverage': 0.08898305084745763, 'score_ge_900_rate': 0.0, 'algo': 'ppo', 'seed': 0, 'checkpoint': 'D:\\Desktop\\RL_project\\runs\\smoke\\ppo_s0\\last.pt', 'checkpoint_steps': 512, 'train_seconds': 14.996433500142302, 'evaluation_seconds': 50.36816239997279, 'domain_randomize': False, 'seed_start': 2000000, 'deterministic': True, 'config': {'algo': 'ppo', 'seed': 0, 'steps': 512, 'num_envs': 2, 'rollout': 16, 'batch_size': 128, 'device': 'cuda', 'threads': 2, 'actor_lr': 0.0003, 'critic_lr': 0.0003, 'gamma': 0.99, 'gae_lambda': 0.95, 'reward_scale': 0.1, 'entropy_coef': 0.0, 'normalize_adv': True, 'value_steps': 50, 'ppo_epochs': 10, 'clip': 0.2, 'max_grad_norm': 1.0, 'critic_grad_norm': 0.0, 'eval_every': 128, 'eval_episodes': 1, 'out': 'runs\\smoke', 'name': None, 'resume': None}}
+[swscaler @ 00000145476d0f80] Warning: data is not aligned! This can lead to a speed loss
+{'episodes': 1, 'mean_return': -11.016949152542619, 'std_return': 0.0, 'median_return': -11.016949152542619, 'min_return': -11.016949152542619, 'max_return': -11.016949152542619, 'completion_rate': 0.0, 'mean_coverage': 0.08898305084745763, 'score_ge_900_rate': 0.0, 'algo': 'ppo', 'seed': 0, 'checkpoint': 'D:\\Desktop\\RL_project\\runs\\smoke\\ppo_s0\\best.pt', 'checkpoint_steps': 128, 'train_seconds': 4.115605999948457, 'evaluation_seconds': 43.68971080001211, 'domain_randomize': False, 'seed_start': 2000000, 'deterministic': True, 'config': {'algo': 'ppo', 'seed': 0, 'steps': 512, 'num_envs': 2, 'rollout': 16, 'batch_size': 128, 'device': 'cuda', 'threads': 2, 'actor_lr': 0.0003, 'critic_lr': 0.0003, 'gamma': 0.99, 'gae_lambda': 0.95, 'reward_scale': 0.1, 'entropy_coef': 0.0, 'normalize_adv': True, 'value_steps': 50, 'ppo_epochs': 10, 'clip': 0.2, 'max_grad_norm': 1.0, 'critic_grad_norm': 0.0, 'eval_every': 128, 'eval_episodes': 1, 'out': 'runs\\smoke', 'name': None, 'resume': None}}
+vpg50 seed=0 decisions=32/512 sps=22.0 value_mse=0.0007
+vpg50 seed=0 decisions=64/512 sps=36.8 value_mse=0.0096
+vpg50 seed=0 decisions=96/512 sps=34.5 value_mse=0.0134
+vpg50 seed=0 decisions=128/512 sps=34.6 value_mse=0.0080
+validation return=-30.2 completion=0%
+vpg50 seed=0 decisions=160/512 sps=30.2 value_mse=0.0127
+vpg50 seed=0 decisions=192/512 sps=35.3 value_mse=0.0060
+vpg50 seed=0 decisions=224/512 sps=33.1 value_mse=0.0040
+vpg50 seed=0 decisions=256/512 sps=36.0 value_mse=0.0022
+validation return=-30.2 completion=0%
+vpg50 seed=0 decisions=288/512 sps=28.3 value_mse=0.0025
+vpg50 seed=0 decisions=320/512 sps=36.4 value_mse=0.0023
+vpg50 seed=0 decisions=352/512 sps=35.2 value_mse=0.0012
+vpg50 seed=0 decisions=384/512 sps=30.2 value_mse=0.0017
+validation return=-30.2 completion=0%
+vpg50 seed=0 decisions=416/512 sps=28.9 value_mse=0.0030
+vpg50 seed=0 decisions=448/512 sps=35.7 value_mse=0.0016
+vpg50 seed=0 decisions=480/512 sps=34.3 value_mse=0.0013
+vpg50 seed=0 decisions=512/512 sps=31.3 value_mse=0.0002
+validation return=-30.2 completion=0%
+[swscaler @ 000001a8a8d71000] Warning: data is not aligned! This can lead to a speed loss
+{'episodes': 1, 'mean_return': -11.016949152542107, 'std_return': 0.0, 'median_return': -11.016949152542107, 'min_return': -11.016949152542107, 'max_return': -11.016949152542107, 'completion_rate': 0.0, 'mean_coverage': 0.08898305084745763, 'score_ge_900_rate': 0.0, 'algo': 'vpg50', 'seed': 0, 'checkpoint': 'D:\\Desktop\\RL_project\\runs\\smoke\\vpg50_s0\\last.pt', 'checkpoint_steps': 512, 'train_seconds': 15.936489099927712, 'evaluation_seconds': 23.638193599996157, 'domain_randomize': False, 'seed_start': 2000000, 'deterministic': True, 'config': {'algo': 'vpg50', 'seed': 0, 'steps': 512, 'num_envs': 2, 'rollout': 16, 'batch_size': 128, 'device': 'cuda', 'threads': 2, 'actor_lr': 0.0003, 'critic_lr': 0.0003, 'gamma': 0.99, 'gae_lambda': 0.95, 'reward_scale': 0.1, 'entropy_coef': 0.0, 'normalize_adv': True, 'value_steps': 50, 'ppo_epochs': 10, 'clip': 0.2, 'max_grad_norm': 1.0, 'critic_grad_norm': 0.0, 'eval_every': 128, 'eval_episodes': 1, 'out': 'runs\\smoke', 'name': None, 'resume': None}}
+[swscaler @ 0000021202e21000] Warning: data is not aligned! This can lead to a speed loss
+{'episodes': 1, 'mean_return': -11.016949152542615, 'std_return': 0.0, 'median_return': -11.016949152542615, 'min_return': -11.016949152542615, 'max_return': -11.016949152542615, 'completion_rate': 0.0, 'mean_coverage': 0.08898305084745763, 'score_ge_900_rate': 0.0, 'algo': 'vpg50', 'seed': 0, 'checkpoint': 'D:\\Desktop\\RL_project\\runs\\smoke\\vpg50_s0\\best.pt', 'checkpoint_steps': 128, 'train_seconds': 4.177443500026129, 'evaluation_seconds': 30.285401200002525, 'domain_randomize': False, 'seed_start': 2000000, 'deterministic': True, 'config': {'algo': 'vpg50', 'seed': 0, 'steps': 512, 'num_envs': 2, 'rollout': 16, 'batch_size': 128, 'device': 'cuda', 'threads': 2, 'actor_lr': 0.0003, 'critic_lr': 0.0003, 'gamma': 0.99, 'gae_lambda': 0.95, 'reward_scale': 0.1, 'entropy_coef': 0.0, 'normalize_adv': True, 'value_steps': 50, 'ppo_epochs': 10, 'clip': 0.2, 'max_grad_norm': 1.0, 'critic_grad_norm': 0.0, 'eval_every': 128, 'eval_episodes': 1, 'out': 'runs\\smoke', 'name': None, 'resume': None}}
+Report: D:\Desktop\RL_project\runs\smoke\report\index.html
+   method  training_seeds  mean_return seed_std ci95_low ci95_high  completion_rate  mean_coverage  score_ge_900_rate  train_hours  decision_sps  validation_auc
+      a2c               1   -11.016949     None     None      None              0.0       0.088983                0.0     0.003597     39.540057      -30.232558
+      ppo               1   -11.016949     None     None      None              0.0       0.088983                0.0     0.004166     34.141451      -30.232558
+vpg50_K50               1   -11.016949     None     None      None              0.0       0.088983                0.0     0.004427     32.127528      -30.232558

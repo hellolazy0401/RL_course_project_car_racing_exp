@@ -1,0 +1,11 @@
+gymnasium==1.1.1
+box2d-py==2.3.8
+pygame==2.6.1
+numpy==1.26.4
+opencv-python-headless==4.10.0.84
+matplotlib==3.9.2
+pandas==2.2.3
+imageio==2.36.1
+imageio-ffmpeg==0.5.1
+tensorboard==2.18.0
+pytest==8.3.4
