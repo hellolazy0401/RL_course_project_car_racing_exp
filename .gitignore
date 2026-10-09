@@ -4,3 +4,9 @@ __pycache__/
 runs/
 reports/
 *.zip
+/runs/
+/runs_conda/
+/runs_tuning_lr1e4/
+/runs_tuning_lr1e4_500k/
+/runs_tuning_lr1e4_1000k/
+/runs_tuning_lr1e4_extended/

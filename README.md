@@ -1,5 +1,7 @@
 # CarRacing 强化学习课程项目
 
+**使用 Anaconda：优先查看 [Conda 运行指南](docs/Conda运行指南.md)。环境名为 `rl_carracing`；激活后用 `python` 执行下面的命令，不再使用 `.venv\Scripts\python.exe`。**
+
 **建议题目：视觉连续驾驶中策略更新与价值估计的对照研究——A2C、PPO 与 ICML 2025 VPG-repeat。**
 
 本工程从像素学习连续驾驶，支持 `--algo a2c|ppo|vpg50` 切换。所有方法采用相同环境、网络、采样预算和测试赛道。`vpg50` 是本工程的命令行简称，论文称其为 **VPG-repeat-k**，不是作者命名的新算法。
