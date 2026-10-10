@@ -11,8 +11,25 @@ import gymnasium as gym
 import numpy as np
 
 
+class LapFinishGate:
+    """Re-entry to tile 0, forward motion and >95% coverage; all tiles also finish."""
+    def __init__(self, on_start):
+        self.was_on_start = bool(on_start)
+        self.left_start = False
+
+    def update(self, on_start, forward, visited, total):
+        entered = on_start and not self.was_on_start
+        if not on_start:
+            self.left_start = True
+        finish = visited == total or (self.left_start and entered and forward and visited / total > .95)
+        self.was_on_start = bool(on_start)
+        return bool(finish)
+
+
 class Racing(gym.Wrapper):
-    def __init__(self, repeat=4, stack=4, size=64, domain_randomize=False):
+    def __init__(self, repeat=4, stack=4, size=64, domain_randomize=False, completion_mode="original"):
+        if completion_mode not in ("original", "lap95"):
+            raise ValueError("Unknown completion_mode")
         super().__init__(gym.make("CarRacing-v3", continuous=True,
             render_mode="rgb_array", domain_randomize=domain_randomize,
             lap_complete_percent=0.95, max_episode_steps=1000))
@@ -20,6 +37,10 @@ class Racing(gym.Wrapper):
         self.frames = deque(maxlen=stack)
         self.observation_space = gym.spaces.Box(0, 255, (stack, size, size), np.uint8)
         self.video_writer = None
+        self.completion_mode = completion_mode
+
+    def on_start(self):
+        return any(tile.idx == 0 for wheel in self.unwrapped.car.wheels for tile in wheel.tiles)
 
     def image(self, obs):
         return cv2.resize(cv2.cvtColor(obs, cv2.COLOR_RGB2GRAY),
@@ -27,6 +48,9 @@ class Racing(gym.Wrapper):
 
     def reset(self, **kwargs):
         obs, info = self.env.reset(**kwargs)
+        self.finish_gate = LapFinishGate(self.on_start())
+        track = self.unwrapped.track
+        self.start_tangent = np.array(track[1][2:4]) - np.array(track[-1][2:4])
         self.frames.clear()
         self.frames.extend([self.image(obs)] * self.stack)
         self.raw_return, self.raw_steps, self.decisions = 0., 0, 0
@@ -36,6 +60,15 @@ class Racing(gym.Wrapper):
         reward, used = 0., 0
         for _ in range(self.repeat):
             obs, r, terminated, truncated, info = self.env.step(action)
+            if self.completion_mode == "lap95":
+                base = self.unwrapped
+                forward = np.dot(np.array(base.car.hull.linearVelocity), self.start_tangent) > 0
+                finished = self.finish_gate.update(self.on_start(), forward, base.tile_visited_count, len(base.track))
+                # Keep native failure termination (e.g. outside playfield).
+                failed = terminated and not info.get("lap_finished", False)
+                if not failed:
+                    terminated = finished
+                    info["lap_finished"] = finished
             reward += r
             used += 1
             if self.video_writer is not None:
@@ -51,7 +84,7 @@ class Racing(gym.Wrapper):
             base = self.unwrapped
             coverage = float(base.tile_visited_count / len(base.track))
             # Completion is distinct from crossing 95% before returning to start.
-            complete = bool(terminated and (base.new_lap or base.tile_visited_count == len(base.track)))
+            complete = bool(terminated and info.get("lap_finished", False))
             info["episode_metrics"] = dict(return_raw=float(self.raw_return),
                 raw_frames=self.raw_steps, decisions=self.decisions,
                 coverage=coverage, completed=complete, terminated=bool(terminated),

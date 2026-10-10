@@ -49,6 +49,8 @@ def main():
     p.add_argument("--videos", type=int, default=3)
     p.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     p.add_argument("--domain-randomize", action="store_true")
+    p.add_argument("--completion-mode", choices=["original", "lap95"], default=None,
+                   help="Default: checkpoint protocol. Explicit override is a separate environment diagnostic.")
     p.add_argument("--out")
     args = p.parse_args()
     if args.episodes < 1 or args.videos < 0:
@@ -56,13 +58,16 @@ def main():
     checkpoint = Path(args.checkpoint)
     # Only load checkpoints produced by this project / trusted by the user.
     ckpt = torch.load(checkpoint, map_location=args.device, weights_only=False)
+    env_config = dict(ckpt["env_config"])
+    checkpoint_completion_mode = env_config.get("completion_mode", "original")
+    env_config["completion_mode"] = args.completion_mode or checkpoint_completion_mode
     torch.set_num_threads(2)
     agent = Agent().to(args.device)
     agent.load_state_dict(ckpt["model"])
     out = Path(args.out or checkpoint.parent / ("test_ood" if args.domain_randomize else "test"))
     out.mkdir(parents=True, exist_ok=False)
     start = time.perf_counter()
-    rows = evaluate(agent, args.device, ckpt["env_config"],
+    rows = evaluate(agent, args.device, env_config,
         range(args.seed_start, args.seed_start + args.episodes), out / "videos", args.videos, args.domain_randomize)
     for row in rows:
         append_csv(out / "episodes.csv", row)
@@ -70,7 +75,9 @@ def main():
         checkpoint=str(checkpoint.resolve()), checkpoint_steps=ckpt["steps"],
         train_seconds=ckpt["train_seconds"], evaluation_seconds=time.perf_counter()-start,
         domain_randomize=args.domain_randomize, seed_start=args.seed_start,
-        deterministic=True, config=ckpt["config"])
+        deterministic=True, config=ckpt["config"], env_config=env_config,
+        completion_mode=env_config["completion_mode"], checkpoint_completion_mode=checkpoint_completion_mode,
+        protocol_override=env_config["completion_mode"] != checkpoint_completion_mode)
     save_json(out / "summary.json", result)
     print(result)
 

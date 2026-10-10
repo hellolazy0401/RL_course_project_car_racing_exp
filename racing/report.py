@@ -34,6 +34,7 @@ def main():
         run = path.parent.parent
         row = {k:v for k,v in s.items() if k not in ("config",)}
         row["run"] = run.name
+        row["completion_mode"] = s.get("completion_mode", s.get("env_config", {}).get("completion_mode", "original"))
         row["checkpoint_train_seconds"] = row["train_seconds"]
         finished_path = run / "finished.json"
         finished = json.loads(finished_path.read_text(encoding="utf-8")) if finished_path.exists() else {}
@@ -65,6 +66,8 @@ def main():
     if not runs:
         raise SystemExit("No completed evaluations found. Run racing.evaluate or racing.suite first.")
     frame = pd.DataFrame(runs)
+    if frame.completion_mode.nunique() > 1:
+        raise ValueError("Completion modes differ; use separate report roots")
     if frame.duplicated(["method","seed"]).any():
         raise ValueError("Duplicate method/seed runs: use separate roots for different hyperparameter experiments")
     # Refuse silently mixing unequal budgets or differing test tracks in the main table.

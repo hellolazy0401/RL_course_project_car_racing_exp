@@ -1,5 +1,6 @@
 """Sequential, fail-fast experiment matrix; avoids multiple GPU jobs competing."""
 import argparse
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -13,6 +14,7 @@ def main():
     p.add_argument("--device", default="cuda", choices=["cuda", "cpu"])
     p.add_argument("--out", default="runs")
     p.add_argument("--steps", type=int)
+    p.add_argument("--completion-mode", choices=["original", "lap95"], default="original")
     p.add_argument("--skip-completed", action="store_true")
     args = p.parse_args()
     settings = dict(smoke=(512, [0], 1, 2, 16, 128, 1),
@@ -24,11 +26,16 @@ def main():
     for algo in args.algos:
         for seed in args.seeds or seeds:
             run = root / f"{algo}_s{seed}"
+            if args.skip_completed and (run / "config.json").exists():
+                prior = json.loads((run / "config.json").read_text())
+                if prior.get("completion_mode", "original") != args.completion_mode:
+                    p.error("Existing run uses a different completion mode; use a new --out")
             if not (args.skip_completed and (run / "finished.json").exists()):
                 cmd = [sys.executable, "-m", "racing.train", "--algo", algo, "--seed", str(seed),
                     "--steps", str(args.steps or steps), "--device", args.device,
                     "--out", str(root), "--num-envs", str(envs), "--rollout", str(rollout),
-                    "--eval-every", str(eval_every), "--eval-episodes", str(val_eps)]
+                    "--eval-every", str(eval_every), "--eval-episodes", str(val_eps),
+                    "--completion-mode", args.completion_mode]
                 # Smoke still exercises the real K=50 update, not a different algorithm.
                 subprocess.run(cmd, check=True)
             # Primary: last checkpoint at equal sample budget. Secondary: validation-selected best.

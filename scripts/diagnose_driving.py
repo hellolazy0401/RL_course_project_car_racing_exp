@@ -20,21 +20,27 @@ def main():
     p.add_argument('--run',required=True)
     p.add_argument('--device',choices=['cpu','cuda'],default='cuda')
     p.add_argument('--limit',type=int,default=2000)
+    p.add_argument('--seed-start',type=int,default=1000000)
+    p.add_argument('--episodes',type=int,default=5)
+    p.add_argument('--video-subdir',default='validation_video_best')
+    p.add_argument('--out-name',default=None)
     args=p.parse_args()
     run=Path(args.run)
-    out=run/('driving_diagnosis_'+args.device)
+    out=run/(args.out_name or ('driving_diagnosis_'+args.device))
     out.mkdir(exist_ok=True)
     torch.set_num_threads(2)
     ck=torch.load(run/'best.pt',map_location='cpu',weights_only=False)
     agent=Agent().to(args.device);agent.load_state_dict(ck['model']);agent.eval()
     summaries=[]
-    for seed in range(1000000,1000005):
-        video=run/'validation_video_best'/'videos'/f'track_{seed}.mp4'
+    for seed in range(args.seed_start,args.seed_start+args.episodes):
+        video=run/args.video_subdir/'videos'/f'track_{seed}.mp4'
         reader=imageio.get_reader(str(video))
+        nframes=reader.count_frames()
         fig,axs=plt.subplots(3,4,figsize=(16,8.5))
         for ax,t in zip(axs.flat,[0,2,4,6,8,10,12,14,16,18,19,19.98]):
-            ax.imshow(reader.get_data(round(t*50)));ax.set_title(f'{t:.2f} s');ax.axis('off')
-        fig.suptitle(f'Original validation video - track {seed}')
+            frame=min(round(t*50),nframes-1)
+            ax.imshow(reader.get_data(frame));ax.set_title(f'{frame/50:.2f} s');ax.axis('off')
+        fig.suptitle(f'Original video - track {seed}')
         fig.tight_layout();fig.savefig(out/f'frames_{seed}.jpg',dpi=110);plt.close(fig);reader.close()
         env=Racing(**ck['env_config'])
         # Diagnostic counterfactual ONLY. Formal environment remains 1000 frames.
