@@ -23,6 +23,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--root", required=True)
     p.add_argument("--selection", choices=["test","test_best","test_ood"], default="test")
+    p.add_argument("--allow-unequal-budgets", action="store_true", help="Explicitly report unequal actual budgets (e.g. complete GRPO groups)")
     args = p.parse_args()
     root = Path(args.root).resolve()
     out = root / ("report" if args.selection=="test" else "report_"+args.selection)
@@ -71,7 +72,7 @@ def main():
     if frame.duplicated(["method","seed"]).any():
         raise ValueError("Duplicate method/seed runs: use separate roots for different hyperparameter experiments")
     # Refuse silently mixing unequal budgets or differing test tracks in the main table.
-    if frame.checkpoint_steps.nunique()>1 and args.selection=="test":
+    if frame.checkpoint_steps.nunique()>1 and args.selection=="test" and not args.allow_unequal_budgets:
         raise ValueError("Unequal final training budgets. Compare in separate report roots.")
     if frame.seed_start.nunique()>1 or frame.episodes.nunique()>1 or frame.domain_randomize.nunique()>1:
         raise ValueError("Test protocol differs between runs")
@@ -82,6 +83,7 @@ def main():
     for name, g in frame.groupby("method"):
         low, high = bootstrap(g.mean_return, rng)
         groups.append(dict(method=name, training_seeds=len(g), mean_return=g.mean_return.mean(),
+            checkpoint_steps_min=int(g.checkpoint_steps.min()), checkpoint_steps_max=int(g.checkpoint_steps.max()),
             seed_std=g.mean_return.std(ddof=1) if len(g)>1 else None, ci95_low=low, ci95_high=high,
             completion_rate=g.completion_rate.mean(), mean_coverage=g.mean_coverage.mean(),
             score_ge_900_rate=g.score_ge_900_rate.mean(), train_hours=g.train_seconds.mean()/3600,
@@ -125,9 +127,15 @@ def main():
     for name,g in up.groupby("method"):
         for metric,ax in zip(("value_mse","approx_kl","explained_variance"),axes):
             for seed,v in g.groupby("seed"):
-                ax.plot(v.steps,v[metric],alpha=.55,label=f"{name}/{seed}")
+                if metric in v and v[metric].notna().any():
+                    ax.plot(v.steps,v[metric],alpha=.55,label=f"{name}/{seed}")
             ax.set(xlabel="Decisions",title=metric); ax.grid(alpha=.2)
-    axes[0].legend(fontsize=6); fig.tight_layout(); fig.savefig(out/"diagnostics.png",dpi=160); plt.close(fig)
+    for ax in axes:
+        if ax.get_legend_handles_labels()[0]:
+            ax.legend(fontsize=6)
+        else:
+            ax.text(.5,.5,"N/A: no critic metrics",ha="center",va="center",transform=ax.transAxes)
+    fig.tight_layout(); fig.savefig(out/"diagnostics.png",dpi=160); plt.close(fig)
     figures.append("diagnostics")
     fig,ax=plt.subplots(figsize=(7,4))
     for i,(name,g) in enumerate(frame.groupby("method")):
@@ -142,6 +150,9 @@ def main():
 <style>body{max-width:1200px;margin:36px auto;font:16px system-ui;line-height:1.7;padding:0 20px;background:#f4f7fc;color:#14283e}table{border-collapse:collapse;font-size:13px;background:white}td,th{padding:7px;border:1px solid #ccd6e3}img{max-width:100%;background:white}video{width:380px;max-width:100%}.card{display:inline-block;margin:8px;padding:12px;background:white}h1,h2{color:#12385b}</style>
 <h1>CarRacing 算法对比</h1>'''
     content+=f"<p>数据目录：{html.escape(str(root))}；模型选择：{args.selection}。</p>"
+    if args.allow_unequal_budgets:
+        content+="<p><b>已允许不相等的实际预算：表中列出检查点决策数范围，本报告不能称为严格等样本预算比较。</b></p>"
+    content+="<p>GRPO 为同赛道完整轨迹分组的连续控制适配版，不使用 critic/GAE；其价值网络指标为空。完整组采样可能略超请求预算，以实际 checkpoint_steps 为准；不同实际预算不合并为等预算最终模型比较。</p>"
     content+="<p><b>短跑仅用于验证管线，不代表收敛表现。</b>表中区间为训练种子均值的 bootstrap 95% 区间；单种子不计算区间，3 个种子的区间也很不稳定，建议最终 5 个。曲线阴影是种子间标准差，不是置信区间。测试赛道重复不等于独立训练重复。</p>"
     content+=table.round(3).to_html(index=False,na_rep="—")
     for name in figures:

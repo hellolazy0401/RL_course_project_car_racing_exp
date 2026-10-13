@@ -104,6 +104,10 @@ def _worker(conn, config, seed):
                 break
             if cmd == "reset":
                 result = env.reset(seed=int(rng.integers(0, 1_000_000)))[0]
+            elif cmd == "reset_seed":
+                result = env.reset(seed=int(data))[0]
+            elif cmd == "step_episode":
+                result = env.step(data)  # GRPO: never auto-reset a finished trajectory.
             elif cmd == "step":
                 obs, reward, term, trunc, info = env.step(data)
                 if term or trunc:
@@ -136,9 +140,10 @@ class VectorRacing:
             self.pipes.append(parent)
             self.processes.append(proc)
 
-    def receive(self):
+    def receive(self, indices=None):
         results = []
-        for pipe in self.pipes:
+        for i in (range(len(self.pipes)) if indices is None else indices):
+            pipe = self.pipes[i]
             if not pipe.poll(180):
                 raise TimeoutError("Environment worker did not reply within 180 s")
             ok, result = pipe.recv()
@@ -151,6 +156,16 @@ class VectorRacing:
         for pipe in self.pipes:
             pipe.send(("reset", None))
         return np.stack(self.receive())
+
+    def reset_same_seed(self, seed):
+        for pipe in self.pipes:
+            pipe.send(("reset_seed", int(seed)))
+        return np.stack(self.receive())
+
+    def step_active(self, indices, actions):
+        for i, action in zip(indices, actions):
+            self.pipes[i].send(("step_episode", action))
+        return self.receive(indices)
 
     def step(self, actions):
         for pipe, action in zip(self.pipes, actions):

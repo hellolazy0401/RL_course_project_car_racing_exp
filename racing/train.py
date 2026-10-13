@@ -127,7 +127,11 @@ def validate_restore(ck, config, branch=False):
 
 def parser():
     p = argparse.ArgumentParser()
-    p.add_argument("--algo", choices=["a2c", "ppo", "vpg50"], required=True)
+    p.add_argument("--algo", choices=["a2c", "ppo", "vpg50", "grpo"], required=True)
+    p.add_argument("--grpo-group-size", type=int, default=4)
+    p.add_argument("--grpo-groups-per-update", type=int, default=2)
+    p.add_argument("--grpo-epochs", type=int, default=4)
+    p.add_argument("--grpo-beta", type=float, default=0., help="GRPO frozen initial-reference KL coefficient; 0 disables reference KL")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--steps", type=int, default=1_000_000, help="Aggregate policy decisions, NOT raw frames")
     p.add_argument("--num-envs", type=int, default=4)
@@ -163,6 +167,9 @@ def parser():
 def main():
     p = parser()
     args = p.parse_args()
+    if args.algo == "grpo":
+        from .grpo import train
+        return train(args, p)
     for key in ("steps", "num_envs", "rollout", "batch_size", "threads", "value_steps", "ppo_epochs", "eval_every", "eval_episodes"):
         if getattr(args, key) <= 0:
             p.error(f"{key} must be positive")

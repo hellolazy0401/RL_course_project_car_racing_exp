@@ -17,11 +17,11 @@ def tower(outputs, output_gain):
 
 
 class Agent(nn.Module):
-    def __init__(self):
+    def __init__(self, with_critic=True):
         super().__init__()
         # Separate CNNs: extra critic steps must never silently change the actor.
         self.actor = tower(3, 0.01)
-        self.critic = tower(1, 1.)
+        self.critic = tower(1, 1.) if with_critic else None
         self.logstd = nn.Parameter(torch.full((3,), -0.5))
 
     def actor_parameters(self):

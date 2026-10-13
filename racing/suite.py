@@ -9,7 +9,7 @@ from pathlib import Path
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--preset", choices=["smoke", "pilot", "main"], default="pilot")
-    p.add_argument("--algos", nargs="+", choices=["a2c", "ppo", "vpg50"], default=["a2c", "ppo", "vpg50"])
+    p.add_argument("--algos", nargs="+", choices=["a2c", "ppo", "vpg50", "grpo"], default=["a2c", "ppo", "vpg50"])
     p.add_argument("--seeds", nargs="+", type=int)
     p.add_argument("--device", default="cuda", choices=["cuda", "cpu"])
     p.add_argument("--out", default="runs")
@@ -37,6 +37,8 @@ def main():
                     "--eval-every", str(eval_every), "--eval-episodes", str(val_eps),
                     "--completion-mode", args.completion_mode]
                 # Smoke still exercises the real K=50 update, not a different algorithm.
+                if algo == "grpo":
+                    cmd += ["--grpo-group-size", str(envs)]
                 subprocess.run(cmd, check=True)
             # Primary: last checkpoint at equal sample budget. Secondary: validation-selected best.
             for checkpoint, label in (("last", "test"), ("best", "test_best")):
@@ -46,7 +48,10 @@ def main():
                 subprocess.run([sys.executable,"-m","racing.evaluate","--checkpoint",str(run/f"{checkpoint}.pt"),
                     "--out",str(dest),"--device",args.device,"--episodes",str(test_eps),
                     "--videos", "1" if args.preset=="smoke" else "3"], check=True)
-    subprocess.run([sys.executable,"-m","racing.report","--root",str(root)], check=True)
+    report_cmd=[sys.executable,"-m","racing.report","--root",str(root)]
+    if "grpo" in args.algos:
+        report_cmd += ["--allow-unequal-budgets"]
+    subprocess.run(report_cmd, check=True)
 
 
 if __name__ == "__main__":
