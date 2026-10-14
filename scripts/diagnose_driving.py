@@ -30,7 +30,7 @@ def main():
     out.mkdir(exist_ok=True)
     torch.set_num_threads(2)
     ck=torch.load(run/'best.pt',map_location='cpu',weights_only=False)
-    agent=Agent(with_critic=ck['config']['algo'] != 'grpo').to(args.device);agent.load_state_dict(ck['model']);agent.eval()
+    agent=Agent(with_critic=ck['config']['algo'] not in ('grpo','grpo-c')).to(args.device);agent.load_state_dict(ck['model']);agent.eval()
     summaries=[]
     for seed in range(args.seed_start,args.seed_start+args.episodes):
         video=run/args.video_subdir/'videos'/f'track_{seed}.mp4'

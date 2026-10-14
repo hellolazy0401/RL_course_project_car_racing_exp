@@ -9,7 +9,7 @@ from pathlib import Path
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--preset", choices=["smoke", "pilot", "main"], default="pilot")
-    p.add_argument("--algos", nargs="+", choices=["a2c", "ppo", "vpg50", "grpo"], default=["a2c", "ppo", "vpg50"])
+    p.add_argument("--algos", nargs="+", choices=["a2c", "ppo", "vpg50", "grpo", "grpo-c"], default=["a2c", "ppo", "vpg50"])
     p.add_argument("--seeds", nargs="+", type=int)
     p.add_argument("--device", default="cuda", choices=["cuda", "cpu"])
     p.add_argument("--out", default="runs")
@@ -49,7 +49,7 @@ def main():
                     "--out",str(dest),"--device",args.device,"--episodes",str(test_eps),
                     "--videos", "1" if args.preset=="smoke" else "3"], check=True)
     report_cmd=[sys.executable,"-m","racing.report","--root",str(root)]
-    if "grpo" in args.algos:
+    if "grpo" in args.algos or "grpo-c" in args.algos:
         report_cmd += ["--allow-unequal-budgets"]
     subprocess.run(report_cmd, check=True)
 

@@ -62,7 +62,7 @@ def main():
     checkpoint_completion_mode = env_config.get("completion_mode", "original")
     env_config["completion_mode"] = args.completion_mode or checkpoint_completion_mode
     torch.set_num_threads(2)
-    agent = Agent(with_critic=ckpt["config"]["algo"] != "grpo").to(args.device)
+    agent = Agent(with_critic=ckpt["config"]["algo"] not in ("grpo", "grpo-c")).to(args.device)
     agent.load_state_dict(ckpt["model"])
     out = Path(args.out or checkpoint.parent / ("test_ood" if args.domain_randomize else "test"))
     out.mkdir(parents=True, exist_ok=False)
