@@ -36,6 +36,9 @@ def main():
         row = {k:v for k,v in s.items() if k not in ("config",)}
         row["run"] = run.name
         row["completion_mode"] = s.get("completion_mode", s.get("env_config", {}).get("completion_mode", "original"))
+        row["observation_protocol"] = "image+road-state" if s.get("env_config", {}).get("road_state", False) else "image"
+        if s.get("env_config", {}).get("observation_mode") == "state":
+            row["observation_protocol"] = "privileged-state"
         row["checkpoint_train_seconds"] = row["train_seconds"]
         finished_path = run / "finished.json"
         finished = json.loads(finished_path.read_text(encoding="utf-8")) if finished_path.exists() else {}
@@ -43,6 +46,15 @@ def main():
         row["train_seconds"] = finished.get("train_seconds", row["train_seconds"])
         # Group different ablations independently instead of averaging them together.
         row["method"] = s["algo"] + (f"_K{s['config']['value_steps']}" if s["algo"]=="vpg50" else "")
+        if s["algo"] == "sac":
+            row["method"] += "_" + s["config"].get("sac_arch", "baseline")
+        if s["algo"] == "recurrent-ppo":
+            c = s["config"]
+            row["method"] += f"_{c['rp_observation']}_{c['rp_control']}_h{c['rp_hidden']}"
+            row["method"] += "_split" if c["rp_split_head"] else ""
+            row["method"] += "_finish" if c.get("rp_finish_assist", False) else ""
+        if row["observation_protocol"] == "image+road-state":
+            row["method"] += "_image_road_state"
         protocol = {k:v for k,v in s["config"].items() if k not in
                     ("seed", "out", "name", "resume", "device", "threads")}
         prior = configurations.setdefault(row["method"], protocol)
@@ -59,6 +71,11 @@ def main():
         hit = val[val.mean_return>=900]
         row["first_validation_900_steps"] = None if hit.empty else int(hit.steps.iloc[0])
         up = pd.read_csv(run/"updates.csv")
+        # Earlier recurrent runs recorded frame/time counters per update.
+        # Recover exact matching validation counters without dropping that data.
+        for counter in ("frames", "train_seconds"):
+            if counter not in val and counter in up:
+                val[counter] = np.interp(val.steps, up.steps, up[counter], left=0)
         up["method"], up["seed"] = row["method"], s["seed"]
         updates.append(up)
         runs.append(row)
@@ -67,6 +84,8 @@ def main():
     if not runs:
         raise SystemExit("No completed evaluations found. Run racing.evaluate or racing.suite first.")
     frame = pd.DataFrame(runs)
+    if frame.observation_protocol.nunique() > 1:
+        raise ValueError("Observation protocols differ; use separate report roots")
     if frame.completion_mode.nunique() > 1:
         raise ValueError("Completion modes differ; use separate report roots")
     if frame.duplicated(["method","seed"]).any():
@@ -134,9 +153,20 @@ def main():
         if ax.get_legend_handles_labels()[0]:
             ax.legend(fontsize=6)
         else:
-            ax.text(.5,.5,"N/A: no critic metrics",ha="center",va="center",transform=ax.transAxes)
+            ax.text(.5,.5,"N/A: metric not recorded",ha="center",va="center",transform=ax.transAxes)
     fig.tight_layout(); fig.savefig(out/"diagnostics.png",dpi=160); plt.close(fig)
     figures.append("diagnostics")
+    if "q_loss" in up and up.q_loss.notna().any():
+        fig, axes = plt.subplots(1, 3, figsize=(13, 4))
+        for metric, ax in zip(("q_loss", "alpha", "entropy"), axes):
+            for (method, seed), g in up.groupby(["method", "seed"]):
+                if g[metric].notna().any():
+                    ax.plot(g.steps, g[metric], label=f"{method}/{seed}", alpha=.7)
+            ax.set(xlabel="Decisions", title=metric)
+            ax.grid(alpha=.2)
+            ax.legend(fontsize=6)
+        fig.tight_layout(); fig.savefig(out/"sac_diagnostics.png", dpi=160); plt.close(fig)
+        figures.append("sac_diagnostics")
     fig,ax=plt.subplots(figsize=(7,4))
     for i,(name,g) in enumerate(frame.groupby("method")):
         ax.scatter([i]*len(g),g.mean_return,label=name)
@@ -161,6 +191,7 @@ def main():
     for name,path in videos:
         content+=f'<div class="card"><b>{html.escape(name)} / {html.escape(Path(path).stem)}</b><br><video controls preload="metadata" src="../{html.escape(path)}"></video></div>'
     content+="<h2>解释边界</h2><p>value_mse 是当前采样批次固定 GAE 目标上的拟合误差，不是无偏真实价值误差。时间曲线排除验证但包含采样和优化；云端账单还需计入安装、验证、测试。颜色随机化测试应另表报告。未达到 900 的阈值时间留空，不记成零。</p></html>"
+    content = content.replace("</html>", "<p>SAC 的 q_loss 是双 Q 的 Bellman 回归损失之和，不与 GAE value_mse 混为同一指标。SAC 使用经验回放；等交互预算不代表等优化次数或等计算量。alpha 和 entropy 使用归一化动作空间的熵定义。</p></html>")
     (out/"index.html").write_text(content,encoding="utf-8")
     print(f"Report: {out/'index.html'}")
     print(table.to_string(index=False))

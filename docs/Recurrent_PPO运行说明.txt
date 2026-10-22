@@ -1,0 +1,102 @@
+Recurrent PPO 赛车实验（2026-10-20）
+
+入口
+  训练：python -m racing.train --algo recurrent-ppo ...
+  评估：python -m racing.evaluate --checkpoint 模型.pt ...
+  批次：python -m racing.suite --algos recurrent-ppo ...
+  实验：python -m racing.recurrent_experiment --out 实验目录 --phase train/finalize
+  报告：python -m scripts.report_recurrent --root 实验目录
+  按实际配置复现实验矩阵（新的输出目录）：
+    python -m racing.reproduce_recurrent --records runs_recurrent_ppo_20261020 --out runs_recurrent_reproduced --finalize
+    也可将 --records 指向交付 ZIP 解压后的 records 目录。
+    该命令重建实际的各次预算、参数和续训边界，并重映射旧绝对路径。
+    不重复计算原像素实验被丢弃的未保存 rollout；不保证跨硬件逐位一致。
+    普通 recurrent_experiment --phase train 用于新的候选参数试验。
+
+输入、网络、输出
+  --rp-observation pixels：默认，4×64×64 灰度帧 → CNN → LSTM。
+  --rp-observation state：34 维仿真器状态 → 两层 MLP → LSTM。
+    状态含纵/横向速度、角速度、横向偏差、切线方向、6 个前瞻路点、
+    覆盖率/时间、轮角/轮速、接地比例、上一控制量、几何控制建议等。
+    这是具有额外信息的控制实验，不应作为纯像素算法消融。
+  --rp-hidden 128/256：LSTM 宽度。
+  --rp-split-head：转向与纵向动作分别使用独立隐藏层和输出头。
+  --rp-control direct：网络直接给出转向和有符号纵向控制。
+  --rp-control residual：几何控制器 + 有限幅度的转向/纵向修正。
+  --rp-control adaptive：几何控制器 + 转向修正 + ±25% 的目标速度调整。
+  三种方式均使用互斥油门/刹车，不改变 Box2D 车辆物理。
+  --rp-controller v1/v2：几何控制器版本；默认为 v1。
+  --rp-speed-scale 2.2：几何控制器速度倍率（不限制 direct 网络输出）。
+  --rp-residual-scale 0.2：控制修正幅度。
+  --rp-finish-assist：只在覆盖率 >90% 且接近起终点时启用低速道路中心对准。
+    该辅助只改变转向/油门/刹车，不改变访问计数、奖励或任何完赛条件。
+    scripts/derive_finish_assist.py 可从已训练权重创建明确标记的推理衍生版本；
+    衍生版本没有额外训练，原始可续训模型仍保留。
+
+训练协议
+  PPO-Clip，连续序列截断 BPTT；序列内部不打乱。
+  rollout 和 batch-size 均须为 rp-sequence 的整数倍。
+  steps 须为 num-envs × rollout 的整数倍，单位为累计策略决策。
+  LSTM 记忆跨 rollout 保持；每个环境在新回合开始时独立清零。
+  真终止不自举；时间限制截断用最终观察及对应记忆自举。
+  两种回合边界均截断 GAE，防止自动重置后的回合污染上一个回合。
+  actor-lr 用于共享编码器、LSTM、策略头与方差；critic-lr 用于价值输出头。
+  target-kl 超限时停止共享网络的整个 PPO 更新。
+  当前实验使用 reward-scale 0.01、完成奖励 5、离路惩罚 0.02。
+  这些塑形项只用于训练；评估报告原生回报、真实覆盖率及完赛标志。
+
+完赛与模型选择
+  保持已有 lap95 逻辑：全赛道访问，或离开起点后顺向重回起点且覆盖率 >95%。
+  仍保留原生出界失败和 1000 原始帧（20 秒）上限。
+  best.pt：完赛率最高；同率选择成功完赛平均用时最短，再看覆盖率与回报。
+  last.pt：最近训练状态，不保证优于 best.pt。
+  milestone_步数.pt：每次验证改善的独立检查点。
+  各模型在额外的 100 条确认验证赛道复核之后，才冻结最终交付选择。
+  最终 100 条测试赛道不参与调参或重新挑选获胜者。
+  成功回合平均时间存在条件选择效应，同时报告共同成功赛道的配对用时、
+  完赛率 Wilson 区间、失败按 40 秒计的惩罚时间。
+
+环境绘图优化
+  state 模式不绘制未使用的像素观察；视频仍按每个物理帧录制。
+  pixels 模式只绘制每次 action-repeat 最后一帧的策略输入。
+  若回合在 repeat 中途结束，则补绘真正最终观察。
+  已测试策略观察、奖励、物理状态和中途截断与原环境逐项一致。
+  优化节省绘图计算，不延长回合、不放宽完赛规则、不删减录制帧。
+
+交付模型对应的训练参数（state + direct，seed 0）
+  conda activate rl_carracing
+  cd /d D:\Desktop\RL_project
+  python -m racing.train --algo recurrent-ppo --rp-observation state --rp-control direct --seed 0 --steps 393216 --num-envs 8 --rollout 256 --batch-size 256 --rp-sequence 32 --ppo-epochs 4 --actor-lr 0.0003 --critic-lr 0.0003 --gamma 0.995 --reward-scale 0.01 --target-kl 0.03 --max-grad-norm 0.5 --eval-every 16384 --eval-episodes 10 --completion-mode lap95 --device cpu --out runs_recurrent_new_direct
+  此命令为连续训练示例；实际实验在 98,304 决策处重启过环境。
+  精确重建该续训边界请使用上面的 reproduce_recurrent 命令。
+  seed 1 在相同预算内未收敛，不能保证换种子就复现交付模型的性能。
+
+局部目标速度控制变体示例（state + adaptive）
+  python -m racing.train --algo recurrent-ppo --rp-observation state --rp-control adaptive --rp-controller v2 --rp-speed-scale 2.2 --rp-residual-scale 0.2 --steps 196608 --num-envs 4 --rollout 256 --batch-size 256 --rp-sequence 32 --ppo-epochs 4 --actor-lr 0.0001 --critic-lr 0.0003 --gamma 0.995 --reward-scale 0.01 --target-kl 0.02 --max-grad-norm 0.5 --eval-every 16384 --eval-episodes 30 --completion-mode lap95 --device cpu --out runs_recurrent_new
+
+评估交付模型
+  python -m racing.evaluate --checkpoint runs_recurrent_ppo_20261020/delivery/best_model.pt --device cpu --episodes 100 --seed-start 5000000 --videos 3 --out runs_recurrent_new_test
+  评估程序自动从检查点读取输入、网络、控制器和完赛协议。
+  推理必须逐步传递 LSTM 状态；每条新赛道清零，不能每帧清零。
+  racing.evaluate.evaluate 已实现上述状态管理。
+
+续训
+  使用相同算法/环境/超参数，传 --resume 原目录/last.pt 和新的 --out 或 --name。
+  steps 是累计目标，须大于检查点步数。
+  恢复网络、优化器、主进程随机数及计数；不序列化 Box2D 世界/工作进程状态。
+  恢复时环境重新开始，不能声称逐位连续复现。
+  祖先目录的 best.pt 不覆盖；实验选择器会比较各 segment 的最佳检查点。
+  已有目录拒绝覆盖。需要重复完整试验时使用新实验根目录。
+
+代码位置
+  racing/recurrent_ppo.py：LSTM、序列 PPO、采样、选择和保存。
+  racing/recurrent_env.py：状态编码、控制器、动作映射、等价绘图优化。
+  racing/recurrent_experiment.py：实验执行、确认验证、冻结选择、最终测试。
+  scripts/screen_recurrent_controller.py、tune_recurrent_controller.py：控制器验证筛选。
+  scripts/report_recurrent.py：记录、图表、HTML 与 ZIP 交付。
+  tests/test_recurrent_ppo.py：时序、重置、梯度、环境一致性及控制逻辑测试。
+
+依赖
+  沿用已有 PyTorch 2.5.1、Gymnasium 1.1.1 和 Box2D 环境，无新增依赖。
+  本机解释器：D:\Anaconda_envs\envs\rl_carracing\python.exe
+  python -m pytest -q

@@ -17,21 +17,34 @@ def tower(outputs, output_gain):
 
 
 class Agent(nn.Module):
-    def __init__(self, with_critic=True):
+    def __init__(self, with_critic=True, road_state=False, road_scale=.25):
         super().__init__()
         # Separate CNNs: extra critic steps must never silently change the actor.
         self.actor = tower(3, 0.01)
         self.critic = tower(1, 1.) if with_critic else None
+        self.road_state = road_state
+        self.road_scale = road_scale
+        self.road_head = nn.Linear(16, 3) if road_state else None
+        if self.road_head is not None:
+            nn.init.zeros_(self.road_head.weight)
+            nn.init.zeros_(self.road_head.bias)
         self.logstd = nn.Parameter(torch.full((3,), -0.5))
 
     def actor_parameters(self):
-        return list(self.actor.parameters()) + [self.logstd]
+        return list(self.actor.parameters()) + [self.logstd] + (list(self.road_head.parameters()) if self.road_head is not None else [])
 
     def value(self, obs):
-        return self.critic(obs.float() / 255.).squeeze(-1)
+        return self.critic(obs[:, :4].float() / 255.).squeeze(-1)
 
     def distribution(self, obs):
-        return Normal(self.actor(obs.float() / 255.), self.logstd.clamp(-5, 2).exp())
+        expected_channels = 5 if self.road_state else 4
+        if obs.ndim != 4 or obs.shape[1] != expected_channels:
+            raise ValueError(f"Policy expects {expected_channels} observation channels")
+        mean = self.actor(obs[:, :4].float() / 255.)
+        if self.road_state:
+            state = (obs[:, 4].flatten(1)[:, :16].float()-128)/127
+            mean = mean + self.road_scale * self.road_head(state).tanh()
+        return Normal(mean, self.logstd.clamp(-5, 2).exp())
 
     def action(self, obs, latent=None, deterministic=False):
         dist = self.distribution(obs)

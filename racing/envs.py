@@ -27,17 +27,28 @@ class LapFinishGate:
 
 
 class Racing(gym.Wrapper):
-    def __init__(self, repeat=4, stack=4, size=64, domain_randomize=False, completion_mode="original"):
+    def __init__(self, repeat=4, stack=4, size=64, domain_randomize=False, completion_mode="original", road_state=False):
+        if road_state and (stack != 4 or size < 4):
+            raise ValueError("Road-state protocol requires four image frames and space for 16 metadata values")
         if completion_mode not in ("original", "lap95"):
             raise ValueError("Unknown completion_mode")
         super().__init__(gym.make("CarRacing-v3", continuous=True,
             render_mode="rgb_array", domain_randomize=domain_randomize,
             lap_complete_percent=0.95, max_episode_steps=1000))
         self.repeat, self.stack, self.size = repeat, stack, size
+        self.road_state = road_state
         self.frames = deque(maxlen=stack)
-        self.observation_space = gym.spaces.Box(0, 255, (stack, size, size), np.uint8)
+        self.observation_space = gym.spaces.Box(0, 255, (stack + int(road_state), size, size), np.uint8)
         self.video_writer = None
         self.completion_mode = completion_mode
+
+    def observation(self):
+        pixels = np.stack(self.frames)
+        if not self.road_state:
+            return pixels
+        from .road_state import road_features, state_plane
+        state = road_features(self.unwrapped, self.track_centers, self.raw_steps)
+        return np.concatenate([pixels, state_plane(state, self.size)[None]], axis=0)
 
     def on_start(self):
         return any(tile.idx == 0 for wheel in self.unwrapped.car.wheels for tile in wheel.tiles)
@@ -50,14 +61,16 @@ class Racing(gym.Wrapper):
         obs, info = self.env.reset(**kwargs)
         self.finish_gate = LapFinishGate(self.on_start())
         track = self.unwrapped.track
+        self.track_centers = np.asarray([point[2:4] for point in track])
         self.start_tangent = np.array(track[1][2:4]) - np.array(track[-1][2:4])
         self.frames.clear()
         self.frames.extend([self.image(obs)] * self.stack)
         self.raw_return, self.raw_steps, self.decisions = 0., 0, 0
-        return np.stack(self.frames), info
+        return self.observation(), info
 
     def step(self, action):
         reward, used = 0., 0
+        offroad = 0.
         for _ in range(self.repeat):
             obs, r, terminated, truncated, info = self.env.step(action)
             if self.completion_mode == "lap95":
@@ -69,6 +82,7 @@ class Racing(gym.Wrapper):
                 if not failed:
                     terminated = finished
                     info["lap_finished"] = finished
+            offroad += 1 - sum(bool(w.tiles) for w in self.unwrapped.car.wheels)/4
             reward += r
             used += 1
             if self.video_writer is not None:
@@ -80,6 +94,7 @@ class Racing(gym.Wrapper):
         self.raw_steps += used
         self.decisions += 1
         info["raw_frames"] = used
+        info["offroad_fraction_sum"] = offroad
         if terminated or truncated:
             base = self.unwrapped
             coverage = float(base.tile_visited_count / len(base.track))
@@ -89,14 +104,18 @@ class Racing(gym.Wrapper):
                 raw_frames=self.raw_steps, decisions=self.decisions,
                 coverage=coverage, completed=complete, terminated=bool(terminated),
                 truncated=bool(truncated), score_ge_900=bool(self.raw_return >= 900))
-        return np.stack(self.frames), reward, terminated, truncated, info
+        return self.observation(), reward, terminated, truncated, info
 
 
 def _worker(conn, config, seed):
     env = None
     try:
         cv2.setNumThreads(1)
-        env = Racing(**config)
+        if config.get("recurrent"):
+            from .recurrent_env import make_env
+            env = make_env(config)
+        else:
+            env = Racing(**config)
         rng = np.random.default_rng(seed)
         while True:
             cmd, data = conn.recv()

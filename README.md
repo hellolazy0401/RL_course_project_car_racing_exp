@@ -1,16 +1,30 @@
 # CarRacing 强化学习课程项目
 
+**新增 Recurrent PPO（PPO-Clip + LSTM）：** `--algo recurrent-ppo`，支持像素或显式道路状态输入、互斥油门/刹车、可选预瞄控制器残差。训练按连续序列反向传播，按回合重置记忆，正确处理超时自举；检查点按“完赛率优先、成功完赛用时其次”保存。主实验目录为 `runs_recurrent_ppo_20261020`，交付报告位于 `delivery/实验记录.html`。道路状态包含仿真器几何信息，不能作为纯像素算法对照。
+
+```bat
+python -m racing.train --algo recurrent-ppo --rp-observation state --rp-control residual --rp-speed-scale 2.2 --steps 196608 --num-envs 8 --rollout 256 --batch-size 256 --rp-sequence 32 --ppo-epochs 4 --actor-lr 0.0001 --critic-lr 0.0003 --gamma 0.995 --reward-scale 0.01 --target-kl 0.02 --max-grad-norm 0.5 --eval-every 16384 --eval-episodes 30 --completion-mode lap95 --device cpu --out runs_recurrent_new
+python -m racing.evaluate --checkpoint runs_recurrent_ppo_20261020/delivery/best_model.pt --device cpu --episodes 100 --seed-start 5000000 --videos 3 --out runs_recurrent_new_test
+python -m pytest -q
+```
+
+Recurrent PPO 默认输入为 `pixels`；上述命令显式开启 `state`。`--rp-split-head` 使用独立转向/纵向输出头，`--rp-hidden 256` 增大 LSTM。精确续训使用相同参数及 `--resume 路径/last.pt`、新的 `--out`，步数为累计目标，且须整除 `num-envs × rollout`。每次改善保留 `milestone_步数.pt`；`last.pt` 不保证优于 `best.pt`。`racing.suite --algos recurrent-ppo` 也可执行；suite 会将决策预算向上补齐到完整 rollout 并打印实际预算。
+
+**新增 SAC — Soft Actor-Critic：** 支持 `--algo sac` 和 `racing.suite --algos sac`，包含经验回放、双 Q、目标网络与自动熵温度。环境检查、自检、试跑、正式多种子对照、参数及续训步骤见 [SAC 运行指南](docs/SAC运行指南.md)。默认 suite 算法列表保持原设置，四算法比较请显式使用 `--algos a2c ppo vpg50 sac`。
+
 **使用 Anaconda：优先查看 [Conda 运行指南](docs/Conda运行指南.md)。环境名为 `rl_carracing`；激活后用 `python` 执行下面的命令，不再使用 `.venv\Scripts\python.exe`。**
+
+GRPO-C 已修复早期版本的状态基线和参考策略混合问题；旧实验请保留，使用新目录从头训练。原因、版本区别和短实验命令见 [GRPO-C 停滞修复与重跑](docs/GRPO-C停滞修复与重跑.md)。
 
 **建议题目：视觉连续驾驶中策略更新与价值估计的对照研究——A2C、PPO 与 ICML 2025 VPG-repeat。**
 
-本工程从像素学习连续驾驶，支持 `--algo a2c|ppo|vpg50|grpo|grpo-c` 切换。环境与测试赛道可统一；GRPO 使用同赛道完整轨迹分组，GRPO-C 增加独立策略、轨迹/状态聚类及连续控制正则，采样与预算边界不同，详见 [GRPO 运行指南](docs/GRPO运行指南.md)和[GRPO-C 运行指南](docs/GRPO-C运行指南.md)。`vpg50` 是本工程的命令行简称，论文称其为 **VPG-repeat-k**，不是作者命名的新算法。
+本工程支持像素连续驾驶，以及显式开启的道路状态实验；支持 `--algo a2c|ppo|vpg50|grpo|grpo-c|sac|recurrent-ppo` 切换。环境与测试赛道可统一；GRPO 使用同赛道完整轨迹分组，GRPO-C 增加独立策略、轨迹/状态聚类及连续控制正则，采样与预算边界不同，详见 [GRPO 运行指南](docs/GRPO运行指南.md)、[GRPO-C 运行指南](docs/GRPO-C运行指南.md)和 [Recurrent PPO 运行说明](docs/Recurrent_PPO运行说明.txt)。`vpg50` 是本工程的命令行简称，论文称其为 **VPG-repeat-k**，不是作者命名的新算法。
 
-先读 [算法选型与实验设计](docs/算法选型与实验设计.md)，再按本页操作。硬件与预算见 [配置与时间成本](docs/配置与时间成本.md)。本目录原有的课程清单和 GIF 均保留。已有 `.venv` 只适用于本机；复制项目到新电脑后重新安装。
+先读 [算法选型与实验设计](docs/算法选型与实验设计.md)，再按本页操作。需要从环境就绪后完整运行算法 × 完赛规则对照，并生成报告、视频和轨迹图时，见[完整实验流程](docs/完整实验流程_算法与完赛逻辑对照.md)。硬件与预算见 [配置与时间成本](docs/配置与时间成本.md)。本目录原有的课程清单和 GIF 均保留。已有 `.venv` 只适用于本机；复制项目到新电脑后重新安装。
 
 ## 1. 你最终能得到什么
 
-- 五个算法的可读 PyTorch 源码；A2C 为同步 GAE 变体，PPO 为 PPO-Clip，VPG-repeat 保留独立 critic 多步更新，GRPO 与 GRPO-C 为两种连续控制适配版。
+- 七个算法的可读 PyTorch 源码；A2C 为同步 GAE 变体，PPO 为 PPO-Clip，VPG-repeat 保留独立 critic 多步更新，GRPO 与 GRPO-C 为两种连续控制适配版，SAC 使用离策略经验回放与最大熵目标，Recurrent PPO 使用 LSTM 和连续序列训练。
 - 每次训练保存配置、软件版本、源码 SHA256、模型权重、优化器状态、TensorBoard、逐回合和逐次更新 CSV。
 - 最终等预算模型和验证集最佳模型分别测试，输出逐赛道得分、完赛率、覆盖率、≥900 比例。
 - 多训练种子的均值、标准差、bootstrap 区间、配对差值；按决策数、原始帧数、训练时间绘图。

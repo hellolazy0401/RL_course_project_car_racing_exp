@@ -5,13 +5,17 @@ from pathlib import Path
 import random
 import time
 import numpy as np
-import torch
-from torch.nn.utils import clip_grad_norm_
-from torch.utils.tensorboard import SummaryWriter
-from .envs import VectorRacing
-from .evaluate import evaluate
-from .model import Agent, gae
-from .utils import append_csv, provenance, save_json, summary
+# Windows spawn imports the launcher as __mp_main__ in every Box2D worker.
+# Workers need only racing.envs; loading Torch/TensorBoard here wastes hundreds
+# of MiB per environment. Normal CLI and library imports retain all symbols.
+if __name__ != "__mp_main__":
+    import torch
+    from torch.nn.utils import clip_grad_norm_
+    from torch.utils.tensorboard import SummaryWriter
+    from .envs import VectorRacing
+    from .evaluate import evaluate
+    from .model import Agent, gae
+    from .utils import append_csv, provenance, save_json, summary
 
 
 def full_step(loss_fn, parameters, optimizer, n, micro, max_norm):
@@ -127,7 +131,28 @@ def validate_restore(ck, config, branch=False):
 
 def parser():
     p = argparse.ArgumentParser()
-    p.add_argument("--algo", choices=["a2c", "ppo", "vpg50", "grpo", "grpo-c"], required=True)
+    p.add_argument("--algo", choices=["a2c", "ppo", "vpg50", "grpo", "grpo-c", "sac", "recurrent-ppo"], required=True)
+    p.add_argument("--rp-observation", choices=["pixels", "state"], default="pixels")
+    p.add_argument("--rp-control", choices=["direct", "residual", "adaptive"], default="direct")
+    p.add_argument("--rp-controller", choices=["v1", "v2"], default="v1")
+    p.add_argument("--rp-finish-assist", action="store_true")
+    p.add_argument("--rp-hidden", type=int, default=128)
+    p.add_argument("--rp-sequence", type=int, default=32)
+    p.add_argument("--rp-split-head", action="store_true")
+    p.add_argument("--rp-speed-scale", type=float, default=1.)
+    p.add_argument("--rp-residual-scale", type=float, default=.2)
+    p.add_argument("--rp-completion-bonus", type=float, default=5.)
+    p.add_argument("--rp-offroad-penalty", type=float, default=.02)
+    p.add_argument("--sac-buffer-size", type=int, default=50_000, help="Replay transitions; two uint8 image stacks use about 1.53 GiB at 50k")
+    p.add_argument("--sac-arch", choices=["baseline", "layernorm", "split", "residual", "gru"], default="baseline")
+    p.add_argument("--sac-context", type=int, default=8, help="Contiguous observation window for GRU; replay never crosses episodes")
+    p.add_argument("--sac-learning-starts", type=int, default=5_000, help="Aggregate random-action decisions before learning")
+    p.add_argument("--sac-gradient-steps", type=int, default=1, help="Updates per vector step after warmup; UTD = this / num-envs")
+    p.add_argument("--sac-tau", type=float, default=.005)
+    p.add_argument("--sac-alpha", type=float, default=.2)
+    p.add_argument("--sac-auto-alpha", action=argparse.BooleanOptionalAction, default=True)
+    p.add_argument("--sac-alpha-lr", type=float, default=3e-4)
+    p.add_argument("--sac-target-entropy", type=float, default=-3., help="Entropy target in normalized [-1,1]^3 action coordinates")
     p.add_argument("--grpo-group-size", type=int, default=4)
     p.add_argument("--grpo-groups-per-update", type=int, default=2)
     p.add_argument("--grpo-epochs", type=int, default=4)
@@ -135,12 +160,29 @@ def parser():
     p.add_argument("--grpo-c-clusters", type=int, default=2, help="Trajectory feature k-means clusters")
     p.add_argument("--grpo-c-state-eps", type=float, default=0.65, help="DBSCAN radius on pooled visual observations")
     p.add_argument("--grpo-c-state-min-samples", type=int, default=4)
+    p.add_argument("--grpo-c-state-fallback-clusters", type=int, default=16, help="Bounded k-means fallback when DBSCAN collapses; 0 disables fallback")
+    p.add_argument("--grpo-c-init", choices=["standard", "drive"], default="drive", help="Initial policy prior only: drive starts with low brake; standard retains the original initialization")
     p.add_argument("--grpo-c-epochs", type=int, default=2)
-    p.add_argument("--grpo-c-beta", type=float, default=0.01, help="Current-to-reference Gaussian KL weight")
+    p.add_argument("--grpo-c-episodes-per-update", type=int, default=1,
+                   help="Complete episodes per policy before updating; 4 enables multi-track accumulation")
+    p.add_argument("--grpo-c-beta", type=float, default=0.01, help="Current-to-reference mixture KL weight (quadrature approximation)")
     p.add_argument("--grpo-c-smooth", type=float, default=0.01)
     p.add_argument("--grpo-c-diversity", type=float, default=0.01)
     p.add_argument("--grpo-c-diversity-threshold", type=float, default=0.2)
     p.add_argument("--grpo-c-reference-tau", type=float, default=0.05)
+    p.add_argument("--grpo-c-selection", choices=["return", "completion"], default="return",
+                   help="Rank checkpoints by return, or completion rate then coverage then return")
+    p.add_argument("--grpo-c-completion-bonus", type=float, default=0.,
+                   help="Training-only bonus for a genuinely completed lap; evaluation reward stays native")
+    p.add_argument("--grpo-c-parallel-eval", action="store_true",
+                   help="Evaluate ensemble members concurrently on the existing environment workers")
+    p.add_argument("--grpo-c-road-state", action="store_true", help="Privileged image + road/vehicle state protocol")
+    p.add_argument("--grpo-c-road-scale", type=float, default=.25)
+    p.add_argument("--grpo-c-offroad-penalty", type=float, default=0., help="Training-only penalty per offroad wheel-fraction frame")
+    p.add_argument("--grpo-c-trainable", choices=["full", "head", "gas-bias", "road-head"], default="full",
+                   help="head freezes visual features/noise; gas-bias additionally preserves steering/braking and trains only the gas mean bias")
+    p.add_argument("--grpo-c-allow-completion-transfer", action="store_true",
+                   help="Allow PPO warm-start weights from the other completion mode; observations/physics must still match")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--steps", type=int, default=1_000_000, help="Aggregate policy decisions, NOT raw frames")
     p.add_argument("--num-envs", type=int, default=4)
@@ -170,12 +212,23 @@ def parser():
     restore = p.add_mutually_exclusive_group()
     restore.add_argument("--resume", help="Restore weights/optimizers/counters; environment starts new episodes")
     restore.add_argument("--branch-from", help="Restore full state for a KL-only ablation; evaluate/save starting model")
+    restore.add_argument("--grpo-c-warm-start", help="Initialize GRPO-C actors from a trusted PPO checkpoint; reset optimizer and fine-tuning counters")
     return p
 
 
 def main():
     p = parser()
     args = p.parse_args()
+    if args.algo == "recurrent-ppo":
+        from .recurrent_ppo import train
+        return train(args, p)
+    if (args.grpo_c_road_state or args.grpo_c_offroad_penalty) and args.algo != "grpo-c":
+        p.error("Road-state protocol is currently supported only for GRPO-C")
+    if args.grpo_c_warm_start and args.algo != "grpo-c":
+        p.error("--grpo-c-warm-start is only supported for GRPO-C")
+    if args.algo == "sac":
+        from .sac import train
+        return train(args, p)
     if args.algo == "grpo":
         from .grpo import train
         return train(args, p)
